@@ -15,7 +15,6 @@ interface Props {
   data: Record<string, Record<string, number>>
 }
 
-type SortDir = 'asc' | 'desc'
 type ViewMode = 'bar' | 'pie'
 
 interface TooltipPayloadItem {
@@ -31,7 +30,6 @@ interface TooltipProps {
 
 export function TrendByNationality({ months, countries, data }: Props) {
   const { t, tCountry } = useLocale()
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [viewMode, setViewMode] = useState<ViewMode>('bar')
 
   const orderedCountries = useMemo(() => {
@@ -41,12 +39,8 @@ export function TrendByNationality({ months, countries, data }: Props) {
       for (const m of months) sum += data[m]?.[c] ?? 0
       totals.set(c, sum)
     }
-    return [...countries].sort((a, b) => {
-      const da = totals.get(a) ?? 0
-      const db = totals.get(b) ?? 0
-      return sortDir === 'asc' ? da - db : db - da
-    })
-  }, [countries, months, data, sortDir])
+    return [...countries].sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0))
+  }, [countries, months, data])
 
   const colorByCountry = useMemo(() => {
     const map = new Map<string, string>()
@@ -57,26 +51,15 @@ export function TrendByNationality({ months, countries, data }: Props) {
   }, [orderedCountries])
 
   const headerActions = (
-    <>
-      <ToggleGroup
-        label={t('dashboard.charts.sort')}
-        value={sortDir}
-        onChange={(v) => setSortDir(v as SortDir)}
-        options={[
-          { value: 'desc', label: t('dashboard.charts.descending') },
-          { value: 'asc', label: t('dashboard.charts.ascending') },
-        ]}
-      />
-      <ToggleGroup
-        label={t('dashboard.charts.view')}
-        value={viewMode}
-        onChange={(v) => setViewMode(v as ViewMode)}
-        options={[
-          { value: 'bar', label: t('dashboard.charts.bar') },
-          { value: 'pie', label: t('dashboard.charts.pie') },
-        ]}
-      />
-    </>
+    <ToggleGroup
+      label={t('dashboard.charts.view')}
+      value={viewMode}
+      onChange={(v) => setViewMode(v as ViewMode)}
+      options={[
+        { value: 'bar', label: t('dashboard.charts.bar') },
+        { value: 'pie', label: t('dashboard.charts.pie') },
+      ]}
+    />
   )
 
   return (
@@ -87,7 +70,6 @@ export function TrendByNationality({ months, countries, data }: Props) {
           orderedCountries={orderedCountries}
           data={data}
           colorByCountry={colorByCountry}
-          sortDir={sortDir}
           tCountry={tCountry}
         />
       ) : (
@@ -145,14 +127,12 @@ function BarView({
   orderedCountries,
   data,
   colorByCountry,
-  sortDir,
   tCountry,
 }: {
   months: string[]
   orderedCountries: string[]
   data: Record<string, Record<string, number>>
   colorByCountry: Map<string, string>
-  sortDir: SortDir
   tCountry: (n: string) => string
 }) {
   const chartData = months.map((month) => ({
@@ -188,9 +168,8 @@ function BarView({
     )
   }
 
-  // For stacked bars: drawing top→bottom of stack means rendering the LAST
-  // <Bar> at the top. So for descending (largest on top), render ascending.
-  const renderOrder = sortDir === 'desc' ? [...orderedCountries].reverse() : [...orderedCountries]
+  // Stacked bars are drawn bottom→top in <Bar> order, so reverse for descending-on-top.
+  const renderOrder = [...orderedCountries].reverse()
 
   return (
     <div>
@@ -271,16 +250,47 @@ function PieGridView({
           return (
             <div key={month} className="flex flex-col items-center">
               <div className="mb-1 text-sm font-medium">{month}</div>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
                     data={slices}
                     dataKey="value"
                     nameKey="name"
-                    innerRadius="45%"
-                    outerRadius="80%"
+                    innerRadius="35%"
+                    outerRadius="65%"
                     isAnimationActive={false}
                     stroke="var(--border)"
+                    label={(raw) => {
+                      const props = raw as {
+                        cx: number
+                        cy: number
+                        midAngle: number
+                        outerRadius: number
+                        percent?: number
+                        name?: string
+                      }
+                      const RADIAN = Math.PI / 180
+                      const r = props.outerRadius + 10
+                      const x = props.cx + r * Math.cos(-props.midAngle * RADIAN)
+                      const y = props.cy + r * Math.sin(-props.midAngle * RADIAN)
+                      const color = colorByCountry.get(props.name ?? '') ?? CHART_COLORS[0]
+                      return (
+                        <text
+                          x={x}
+                          y={y}
+                          fill={color}
+                          fontSize={9}
+                          textAnchor={x > props.cx ? 'start' : 'end'}
+                          dominantBaseline="central"
+                        >
+                          <tspan>{tCountry(props.name ?? '')} </tspan>
+                          <tspan fontWeight="700">
+                            {((props.percent ?? 0) * 100).toFixed(0)}%
+                          </tspan>
+                        </text>
+                      )
+                    }}
+                    labelLine={false}
                   >
                     {slices.map((s) => (
                       <Cell key={s.name} fill={colorByCountry.get(s.name) ?? CHART_COLORS[0]} />

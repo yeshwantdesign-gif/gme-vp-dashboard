@@ -13,6 +13,17 @@ interface Props {
   data: Record<string, Record<string, number>>
 }
 
+interface TooltipPayloadItem {
+  dataKey: string
+  value: number
+  color: string
+}
+interface TooltipProps {
+  active?: boolean
+  label?: string
+  payload?: TooltipPayloadItem[]
+}
+
 export function Top3Trend({ months, countries, data }: Props) {
   const { t, tCountry } = useLocale()
 
@@ -21,6 +32,29 @@ export function Top3Trend({ months, countries, data }: Props) {
     ...Object.fromEntries(countries.map((c) => [c, data[month]?.[c] ?? 0])),
   }))
 
+  function CustomTooltip({ active, label, payload }: TooltipProps) {
+    if (!active || !payload || !label) return null
+    const sorted = [...payload].sort((a, b) => b.value - a.value)
+    return (
+      <div
+        style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--gme-radius-sm)',
+          padding: '8px 12px',
+          fontSize: 12,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 6 }}>{label}</div>
+        {sorted.map((p) => (
+          <div key={p.dataKey} style={{ color: p.color }}>
+            {tCountry(p.dataKey)} : {p.value}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <ChartCard title={t('dashboard.charts.top3Trend')}>
       <ResponsiveContainer width="100%" height={320}>
@@ -28,14 +62,7 @@ export function Top3Trend({ months, countries, data }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip
-            formatter={(value, name) => [value, tCountry(String(name))]}
-            contentStyle={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--gme-radius-sm)',
-            }}
-          />
+          <Tooltip content={<CustomTooltip />} />
           <Legend formatter={(value) => tCountry(value)} />
           {countries.map((country, i) => (
             <Line
