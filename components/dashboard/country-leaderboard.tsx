@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLocale } from '@/contexts/locale-context'
+import { methodToCategory } from '@/lib/method-categories'
 import type { CountryLeaderboardRow } from '@/lib/types'
 
 type SortKey = keyof Pick<CountryLeaderboardRow, 'totalCases' | 'latestMonthCases' | 'momChange' | 'totalKrw' | 'avgKrw'>
@@ -12,7 +13,7 @@ type SortDir = 'asc' | 'desc'
 const DEFAULT_VISIBLE = 12
 
 export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) {
-  const { locale, t, tCountry, tMethod } = useLocale()
+  const { locale, t, tCountry, tMethod, tMethodCategory } = useLocale()
   const [sortKey, setSortKey] = useState<SortKey>('totalCases')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [showAll, setShowAll] = useState(false)
@@ -46,14 +47,15 @@ export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) 
       : <ChevronUp className="ml-1 inline h-3.5 w-3.5" />
   }
 
-  const columns: { key: SortKey | 'country' | 'primaryMethod'; label: string; align: 'left' | 'right' }[] = [
-    { key: 'country', label: t('dashboard.leaderboard.country'), align: 'left' },
-    { key: 'totalCases', label: t('dashboard.leaderboard.totalCases'), align: 'right' },
-    { key: 'latestMonthCases', label: t('dashboard.leaderboard.latestMonth'), align: 'right' },
-    { key: 'momChange', label: t('dashboard.leaderboard.momChange'), align: 'right' },
-    { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage'), align: 'right' },
-    { key: 'avgKrw', label: t('dashboard.leaderboard.avgDamage'), align: 'right' },
-    { key: 'primaryMethod', label: t('dashboard.leaderboard.primaryMethod'), align: 'left' },
+  const columns: { key: SortKey | 'country' | 'primaryMethod' | 'methodCategory'; label: string }[] = [
+    { key: 'country', label: t('dashboard.leaderboard.country') },
+    { key: 'totalCases', label: t('dashboard.leaderboard.totalCases') },
+    { key: 'latestMonthCases', label: t('dashboard.leaderboard.latestMonth') },
+    { key: 'momChange', label: t('dashboard.leaderboard.momChange') },
+    { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage') },
+    { key: 'avgKrw', label: t('dashboard.leaderboard.avgDamage') },
+    { key: 'methodCategory', label: t('dashboard.transactionMethod') },
+    { key: 'primaryMethod', label: t('dashboard.leaderboard.primaryMethod') },
   ]
 
   return (
@@ -63,12 +65,12 @@ export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) 
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)]">
-              {columns.map((col) => {
-                const sortable = col.key !== 'country' && col.key !== 'primaryMethod'
+              {columns.map((col, idx) => {
+                const sortable = col.key !== 'country' && col.key !== 'primaryMethod' && col.key !== 'methodCategory'
                 return (
                   <th
                     key={col.key}
-                    className={`pb-2 font-medium text-[var(--text-secondary)] ${col.align === 'right' ? 'text-right' : 'text-left'} ${sortable ? 'cursor-pointer select-none hover:text-[var(--text-primary)]' : ''}`}
+                    className={`pb-2 text-left font-medium text-[var(--text-secondary)] ${idx > 0 ? 'pl-6' : ''} ${sortable ? 'cursor-pointer select-none hover:text-[var(--text-primary)]' : ''}`}
                     onClick={sortable ? () => handleSort(col.key as SortKey) : undefined}
                   >
                     {col.label}
@@ -88,17 +90,17 @@ export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) 
 
               return (
                 <tr key={row.country} className="border-b border-[var(--border)] last:border-0">
-                  <td className="py-2">
+                  <td className="py-2 text-left">
                     {rank !== null && (
                       <span className="mr-2 text-xs text-[var(--text-muted)] tabular-nums">{rank}</span>
                     )}
                     {tCountry(row.country)}
                   </td>
-                  <td className="py-2 text-right tabular-nums">{numFmt.format(row.totalCases)}</td>
-                  <td className="py-2 text-right tabular-nums">{numFmt.format(row.latestMonthCases)}</td>
-                  <td className={`py-2 text-right tabular-nums ${momClass}`}>
+                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(row.totalCases)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(row.latestMonthCases)}</td>
+                  <td className={`py-2 pl-6 text-left tabular-nums ${momClass}`}>
                     {row.momChange !== null ? (
-                      <span className="inline-flex items-center justify-end gap-1">
+                      <span className="inline-flex items-center gap-1">
                         {momUp
                           ? <TrendingUp className="h-3.5 w-3.5" />
                           : <TrendingDown className="h-3.5 w-3.5" />}
@@ -106,9 +108,12 @@ export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) 
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="py-2 text-right tabular-nums">{krwFmt.format(row.totalKrw)}</td>
-                  <td className="py-2 text-right tabular-nums">{krwFmt.format(row.avgKrw)}</td>
-                  <td className="py-2">
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.totalKrw)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.avgKrw)}</td>
+                  <td className="py-2 pl-6 text-left">
+                    {tMethodCategory(methodToCategory(row.primaryMethod))}
+                  </td>
+                  <td className="py-2 pl-6 text-left">
                     {tMethod(row.primaryMethod)}
                     <span className="ml-1 text-xs text-[var(--text-muted)]">
                       {row.primaryMethodPct.toFixed(0)}%

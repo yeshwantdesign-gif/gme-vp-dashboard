@@ -9,17 +9,69 @@ import { useLocale } from '@/contexts/locale-context'
 
 interface Props {
   months: string[]
-  methods: string[]
+  categories: string[]
   data: Record<string, Record<string, number>>
+  breakdown: Record<string, Record<string, Record<string, number>>>
 }
 
-export function MethodByMonth({ months, methods, data }: Props) {
-  const { t, tMethod } = useLocale()
+interface TooltipPayloadItem {
+  dataKey: string
+  value: number
+  color: string
+}
+
+interface TooltipProps {
+  active?: boolean
+  label?: string
+  payload?: TooltipPayloadItem[]
+}
+
+export function MethodByMonth({ months, categories, data, breakdown }: Props) {
+  const { t, tMethod, tMethodCategory } = useLocale()
 
   const chartData = months.map((month) => ({
     month,
-    ...Object.fromEntries(methods.map((m) => [m, data[month]?.[m] ?? 0])),
+    ...Object.fromEntries(categories.map((c) => [c, data[month]?.[c] ?? 0])),
   }))
+
+  function CustomTooltip({ active, label, payload }: TooltipProps) {
+    if (!active || !payload || !label) return null
+    return (
+      <div
+        style={{
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--gme-radius-sm)',
+          padding: '8px 12px',
+          fontSize: 12,
+          minWidth: 180,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 6 }}>{label}</div>
+        {payload.map((p) => {
+          const cat = p.dataKey
+          const sub = breakdown[label]?.[cat] ?? {}
+          const entries = Object.entries(sub).filter(([, n]) => n > 0)
+          return (
+            <div key={cat} style={{ marginTop: 4 }}>
+              <div style={{ color: p.color, fontWeight: 500 }}>
+                {tMethodCategory(cat)}: {p.value}
+              </div>
+              {entries.length > 0 && (
+                <div style={{ paddingLeft: 10, color: 'var(--text-secondary)' }}>
+                  {entries.map(([method, n]) => (
+                    <div key={method}>
+                      {tMethod(method)}: {n}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <ChartCard title={t('dashboard.methodByMonthTitle')}>
@@ -28,20 +80,13 @@ export function MethodByMonth({ months, methods, data }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip
-            formatter={(value, name) => [value, tMethod(String(name))]}
-            contentStyle={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--gme-radius-sm)',
-            }}
-          />
-          <Legend formatter={(value) => tMethod(value)} />
-          {methods.map((method, i) => (
+          <Tooltip content={<CustomTooltip />} />
+          <Legend formatter={(value) => tMethodCategory(String(value))} />
+          {categories.map((cat, i) => (
             <Line
-              key={method}
+              key={cat}
               type="monotone"
-              dataKey={method}
+              dataKey={cat}
               stroke={CHART_COLORS[i % CHART_COLORS.length]}
               strokeWidth={2}
               dot={{ r: 3 }}

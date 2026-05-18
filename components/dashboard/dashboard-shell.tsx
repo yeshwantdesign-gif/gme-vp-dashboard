@@ -52,7 +52,12 @@ interface ChartData {
   trend: { months: string[]; countries: string[]; data: Record<string, Record<string, number>> }
   share: CountryShareRow[]
   top3: { months: string[]; countries: string[]; data: Record<string, Record<string, number>> }
-  methodByMonth: { months: string[]; methods: string[]; data: Record<string, Record<string, number>> }
+  methodByMonth: {
+    months: string[]
+    categories: string[]
+    data: Record<string, Record<string, number>>
+    breakdown: Record<string, Record<string, Record<string, number>>>
+  }
   cis: CisRow[]
   avgDamage: AvgDamageRow[]
 }
@@ -146,8 +151,9 @@ export function DashboardShell({
 
           <MethodByMonth
             months={charts.methodByMonth.months}
-            methods={charts.methodByMonth.methods}
+            categories={charts.methodByMonth.categories}
             data={charts.methodByMonth.data}
+            breakdown={charts.methodByMonth.breakdown}
           />
 
           <CisAnalysis data={charts.cis} />

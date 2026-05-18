@@ -53,6 +53,8 @@ function MultiSelect({
   selected,
   onChange,
   clearLabel,
+  searchPlaceholder,
+  noResultsLabel,
 }: {
   label: string
   options: string[]
@@ -60,8 +62,11 @@ function MultiSelect({
   selected: string[]
   onChange: (v: string[]) => void
   clearLabel: string
+  searchPlaceholder: string
+  noResultsLabel: string
 }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
 
   function toggle(val: string) {
     if (selected.includes(val)) {
@@ -71,8 +76,22 @@ function MultiSelect({
     }
   }
 
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? options.filter(
+        (opt) =>
+          opt.toLowerCase().includes(q) || displayFn(opt).toLowerCase().includes(q),
+      )
+    : options
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (!o) setQuery('')
+      }}
+    >
       <PopoverTrigger className={triggerClasses}>
         {label}
         {selected.length > 0 && (
@@ -81,7 +100,15 @@ function MultiSelect({
           </Badge>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-56 max-h-64 overflow-y-auto p-2" align="start">
+      <PopoverContent className="w-56 p-2" align="start">
+        <input
+          type="text"
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={searchPlaceholder}
+          className="mb-1 w-full rounded border border-[var(--border)] bg-background px-2 py-1.5 text-sm outline-none focus:border-[var(--border-glow)]"
+        />
         {selected.length > 0 && (
           <button
             onClick={() => onChange([])}
@@ -90,20 +117,28 @@ function MultiSelect({
             <X className="h-3 w-3" /> {clearLabel}
           </button>
         )}
-        {options.map((opt) => (
-          <label
-            key={opt}
-            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-[var(--surface)]"
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(opt)}
-              onChange={() => toggle(opt)}
-              className="rounded"
-            />
-            {displayFn(opt)}
-          </label>
-        ))}
+        <div className="max-h-56 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-2 py-1.5 text-sm text-[var(--text-secondary)]">
+              {noResultsLabel}
+            </div>
+          ) : (
+            filtered.map((opt) => (
+              <label
+                key={opt}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-[var(--surface)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt)}
+                  onChange={() => toggle(opt)}
+                  className="rounded"
+                />
+                {displayFn(opt)}
+              </label>
+            ))
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   )
@@ -122,7 +157,7 @@ export function FilterBar({
   channels: string[]
   transactionMethods: string[]
 }) {
-  const { t, tCountry, tMethod } = useLocale()
+  const { t, tCountry, tMethodCategory } = useLocale()
 
   return (
     <div className="sticky top-[57px] z-40 glass-card flex flex-wrap items-center gap-3 rounded-[var(--gme-radius-sm)]">
@@ -148,6 +183,8 @@ export function FilterBar({
         selected={filters.nationalities}
         onChange={(v) => onFiltersChange({ ...filters, nationalities: v })}
         clearLabel={t('dashboard.filters.clearAll')}
+        searchPlaceholder={t('dashboard.filters.search')}
+        noResultsLabel={t('dashboard.filters.noResults')}
       />
 
       <MultiSelect
@@ -157,15 +194,19 @@ export function FilterBar({
         selected={filters.channels}
         onChange={(v) => onFiltersChange({ ...filters, channels: v })}
         clearLabel={t('dashboard.filters.clearAll')}
+        searchPlaceholder={t('dashboard.filters.search')}
+        noResultsLabel={t('dashboard.filters.noResults')}
       />
 
       <MultiSelect
         label={t('dashboard.transactionMethod')}
         options={transactionMethods}
-        displayFn={tMethod}
+        displayFn={tMethodCategory}
         selected={filters.transactionMethods}
         onChange={(v) => onFiltersChange({ ...filters, transactionMethods: v })}
         clearLabel={t('dashboard.filters.clearAll')}
+        searchPlaceholder={t('dashboard.filters.search')}
+        noResultsLabel={t('dashboard.filters.noResults')}
       />
 
       <div className="ml-auto flex items-center gap-2 text-sm">

@@ -8,6 +8,12 @@ import type {
   AvgDamageRow,
   CountryRuleset,
 } from './types'
+import {
+  METHOD_CATEGORY_IDS,
+  methodToCategory,
+  expandCategoriesToMethods,
+  type MethodCategoryId,
+} from './method-categories'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilters(
@@ -23,7 +29,8 @@ function applyFilters(
     q = q.in('deposit_channel', filters.channels)
   }
   if (filters.transactionMethods.length > 0) {
-    q = q.in('transaction_method', filters.transactionMethods)
+    const raw = expandCategoriesToMethods(filters.transactionMethods)
+    if (raw.length > 0) q = q.in('transaction_method', raw)
   }
   return q.range(0, 9999)
 }
@@ -348,41 +355,57 @@ export async function getCisVsNonCis(
 export async function getMethodByMonth(
   supabase: SupabaseClient,
   filters: Filters
-): Promise<{ months: string[]; methods: string[]; data: Record<string, Record<string, number>> }> {
+): Promise<{
+  months: string[]
+  categories: MethodCategoryId[]
+  data: Record<string, Record<string, number>>
+  breakdown: Record<string, Record<string, Record<string, number>>>
+}> {
   const { data: rows } = await applyFilters(
     supabase.from('phishing_reports').select('transaction_method, report_date, deposit_date'),
     filters
   )
-  if (!rows) return { months: [], methods: [], data: {} }
+  if (!rows) {
+    return { months: [], categories: METHOD_CATEGORY_IDS, data: {}, breakdown: {} }
+  }
 
   const col = filters.dateBasis
-  const countMap = new Map<string, Map<string, number>>()
-  const methodSet = new Set<string>()
+  const totals = new Map<string, Map<MethodCategoryId, number>>()
+  const detail = new Map<string, Map<MethodCategoryId, Map<string, number>>>()
 
   for (const r of rows) {
     const dateVal = r[col] as string | null
     if (!dateVal) continue
     const month = dateVal.slice(0, 7)
     const method = (r.transaction_method as string) || 'Unknown'
-    methodSet.add(method)
-    if (!countMap.has(month)) countMap.set(month, new Map())
-    const m = countMap.get(month)!
-    m.set(method, (m.get(method) ?? 0) + 1)
+    const cat = methodToCategory(method)
+
+    if (!totals.has(month)) totals.set(month, new Map())
+    const t = totals.get(month)!
+    t.set(cat, (t.get(cat) ?? 0) + 1)
+
+    if (!detail.has(month)) detail.set(month, new Map())
+    const d = detail.get(month)!
+    if (!d.has(cat)) d.set(cat, new Map())
+    const sub = d.get(cat)!
+    sub.set(method, (sub.get(method) ?? 0) + 1)
   }
 
-  const months = [...countMap.keys()].sort()
-  const methods = [...methodSet]
+  const months = [...totals.keys()].sort()
   const data: Record<string, Record<string, number>> = {}
+  const breakdown: Record<string, Record<string, Record<string, number>>> = {}
 
   for (const month of months) {
     data[month] = {}
-    const m = countMap.get(month)!
-    for (const method of methods) {
-      data[month][method] = m.get(method) ?? 0
+    breakdown[month] = {}
+    for (const cat of METHOD_CATEGORY_IDS) {
+      data[month][cat] = totals.get(month)?.get(cat) ?? 0
+      const sub = detail.get(month)?.get(cat)
+      breakdown[month][cat] = sub ? Object.fromEntries(sub) : {}
     }
   }
 
-  return { months, methods, data }
+  return { months, categories: METHOD_CATEGORY_IDS, data, breakdown }
 }
 
 // ─── Average Damage by Country ───────────────────────────────

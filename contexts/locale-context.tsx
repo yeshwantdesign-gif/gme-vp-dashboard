@@ -9,6 +9,7 @@ interface LocaleContextValue {
   t: (key: string, vars?: Record<string, string | number>) => string
   tCountry: (name: string) => string
   tMethod: (name: string) => string
+  tMethodCategory: (id: string) => string
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
@@ -73,11 +74,20 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     [locale]
   )
 
+  const tMethodCategory = useCallback(
+    (id: string): string => {
+      const dashboard = (translations[locale] as unknown as Record<string, unknown>).dashboard as Record<string, unknown>
+      const map = dashboard.methodCategories as Record<string, string> | undefined
+      return map?.[id] ?? id
+    },
+    [locale]
+  )
+
   // Avoid hydration mismatch — render children only after reading localStorage
   if (!hydrated) return null
 
   return (
-    <LocaleContext.Provider value={{ locale, setLocale, t, tCountry, tMethod }}>
+    <LocaleContext.Provider value={{ locale, setLocale, t, tCountry, tMethod, tMethodCategory }}>
       {children}
     </LocaleContext.Provider>
   )
