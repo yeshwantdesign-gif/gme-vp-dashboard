@@ -110,7 +110,7 @@ export function DashboardShell({
           ))}
         </div>
       ) : kpi ? (
-        <KpiStrip data={kpi} />
+        <KpiStrip data={kpi} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />
       ) : null}
 
       <FilterBar

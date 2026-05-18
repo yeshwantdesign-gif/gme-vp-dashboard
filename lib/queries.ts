@@ -52,7 +52,13 @@ export async function getKpiStrip(
   )
 
   if (!rows || rows.length === 0) {
-    return { totalCases: totalCases ?? 0, latestMonthCases: 0, topCountry: '—', momChange: null }
+    return {
+      totalCases: totalCases ?? 0,
+      latestMonthCases: 0,
+      latestMonth: null,
+      topCountry: '—',
+      momChange: null,
+    }
   }
 
   const col = filters.dateBasis
@@ -89,7 +95,7 @@ export async function getKpiStrip(
     }
   }
 
-  return { totalCases: totalCases ?? 0, latestMonthCases, topCountry, momChange }
+  return { totalCases: totalCases ?? 0, latestMonthCases, latestMonth: latestMonth ?? null, topCountry, momChange }
 }
 
 // ─── Country Leaderboard ─────────────────────────────────────

@@ -20,7 +20,7 @@ export const translations = {
       title: 'Dashboard',
       kpi: {
         periodTotal: 'Period total cases',
-        latestMonth: 'Latest month',
+        latestMonth: 'Last month',
         topSourceCountry: 'Top source country',
         monthOverMonth: 'Month-over-month',
       },

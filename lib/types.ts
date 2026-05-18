@@ -10,6 +10,7 @@ export interface Filters {
 export interface KpiData {
   totalCases: number
   latestMonthCases: number
+  latestMonth: string | null
   topCountry: string
   momChange: number | null
 }
