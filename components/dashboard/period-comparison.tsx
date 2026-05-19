@@ -184,7 +184,7 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
   }, [])
 
   const [selected, setSelected] = useState<RangeSelection>(() => defaultSelection(1))
-  const [comparison, setComparison] = useState<RangeSelection>(() => defaultSelection(2))
+  const [comparison, setComparison] = useState<RangeSelection>(() => defaultSelection(0))
 
   const adjusted = useMemo(() => {
     return adjustRangesForToday(resolveRange(selected), resolveRange(comparison))

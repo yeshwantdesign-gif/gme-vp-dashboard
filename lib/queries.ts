@@ -548,8 +548,10 @@ export async function getPeriodComparison(
       country,
       primaryCases: agg.primary,
       comparisonCases: agg.comparison,
-      deltaCases: agg.primary - agg.comparison,
-      deltaPct: agg.comparison > 0 ? ((agg.primary - agg.comparison) / agg.comparison) * 100 : null,
+      // Difference reads left-to-right: change from Period → Compare with.
+      // Positive = went up (more phishing = bad); negative = went down.
+      deltaCases: agg.comparison - agg.primary,
+      deltaPct: agg.primary > 0 ? ((agg.comparison - agg.primary) / agg.primary) * 100 : null,
     }))
     .filter((r) => r.primaryCases > 0 || r.comparisonCases > 0)
     .sort((a, b) => b.primaryCases - a.primaryCases)

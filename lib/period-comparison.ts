@@ -31,9 +31,9 @@ function trimToDayCount(r: DateRange, dayCount: number): DateRange {
 /**
  * Trim ranges so that:
  *   - any range extending past today is clipped to today
- *   - if the selected range is "to-date" (ongoing period clipped by today),
- *     the comparison range is trimmed to the same day-count from its start,
- *     so the two periods are apples-to-apples (MTD vs prior MTD, etc.)
+ *   - if EITHER side gets clipped by today (i.e. is "to-date"), both sides
+ *     are trimmed to the shorter day-count so the comparison is apples-to-apples
+ *     (e.g. May 1–19 vs April 1–19, or 2026 Jan 1–May 19 vs 2025 Jan 1–May 19)
  */
 export function adjustRangesForToday(
   selected: DateRange,
@@ -41,9 +41,13 @@ export function adjustRangesForToday(
   todayStr?: string,
 ): { selected: DateRange; comparison: DateRange } {
   const today = todayStr ?? format(new Date(), 'yyyy-MM-dd')
-  const clipped = clipToToday(selected, today)
-  const matched = clipped.to !== selected.to
-    ? trimToDayCount(comparison, lengthInDays(clipped))
-    : comparison
-  return { selected: clipped, comparison: clipToToday(matched, today) }
+  let s = clipToToday(selected, today)
+  let c = clipToToday(comparison, today)
+  const eitherClipped = s.to !== selected.to || c.to !== comparison.to
+  if (eitherClipped) {
+    const minLen = Math.min(lengthInDays(s), lengthInDays(c))
+    s = trimToDayCount(s, minLen)
+    c = trimToDayCount(c, minLen)
+  }
+  return { selected: s, comparison: c }
 }
