@@ -30,7 +30,7 @@ interface TooltipProps {
 
 export function TrendByNationality({ months, countries, data }: Props) {
   const { t, tCountry } = useLocale()
-  const [viewMode, setViewMode] = useState<ViewMode>('bar')
+  const [viewMode, setViewMode] = useState<ViewMode>('pie')
 
   const orderedCountries = useMemo(() => {
     const totals = new Map<string, number>()
@@ -56,8 +56,8 @@ export function TrendByNationality({ months, countries, data }: Props) {
       value={viewMode}
       onChange={(v) => setViewMode(v as ViewMode)}
       options={[
-        { value: 'bar', label: t('dashboard.charts.bar') },
         { value: 'pie', label: t('dashboard.charts.pie') },
+        { value: 'bar', label: t('dashboard.charts.bar') },
       ]}
     />
   )

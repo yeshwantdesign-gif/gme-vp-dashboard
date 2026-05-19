@@ -14,6 +14,7 @@ import {
   expandCategoriesToMethods,
   type MethodCategoryId,
 } from './method-categories'
+import type { DateRange, PeriodComparisonRow } from './period-comparison'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilters(
@@ -56,6 +57,7 @@ export async function getKpiStrip(
       totalCases: totalCases ?? 0,
       latestMonthCases: 0,
       latestMonth: null,
+      previousMonth: null,
       topCountry: '—',
       momChange: null,
     }
@@ -76,11 +78,12 @@ export async function getKpiStrip(
 
   const sortedMonths = [...byMonth.keys()].sort()
   const latestMonth = sortedMonths[sortedMonths.length - 1]
+  const previousMonth = sortedMonths.length >= 2 ? sortedMonths[sortedMonths.length - 2] : null
   const latestMonthCases = byMonth.get(latestMonth) ?? 0
 
   let momChange: number | null = null
-  if (sortedMonths.length >= 2) {
-    const prevCases = byMonth.get(sortedMonths[sortedMonths.length - 2]) ?? 0
+  if (previousMonth) {
+    const prevCases = byMonth.get(previousMonth) ?? 0
     if (prevCases > 0) {
       momChange = ((latestMonthCases - prevCases) / prevCases) * 100
     }
@@ -95,7 +98,14 @@ export async function getKpiStrip(
     }
   }
 
-  return { totalCases: totalCases ?? 0, latestMonthCases, latestMonth: latestMonth ?? null, topCountry, momChange }
+  return {
+    totalCases: totalCases ?? 0,
+    latestMonthCases,
+    latestMonth: latestMonth ?? null,
+    previousMonth,
+    topCountry,
+    momChange,
+  }
 }
 
 // ─── Country Leaderboard ─────────────────────────────────────
@@ -501,4 +511,46 @@ export async function getCountryRulesets(
 
   if (error) throw error
   return (data ?? []) as CountryRuleset[]
+}
+
+// ─── Period Comparison ───────────────────────────────────────
+
+export async function getPeriodComparison(
+  supabase: SupabaseClient,
+  baseFilters: Filters,
+  primary: DateRange,
+  comparison: DateRange,
+): Promise<PeriodComparisonRow[]> {
+  const select = 'sender_nationality, report_date, deposit_date'
+  const primaryFilters: Filters = { ...baseFilters, dateFrom: primary.from, dateTo: primary.to }
+  const comparisonFilters: Filters = { ...baseFilters, dateFrom: comparison.from, dateTo: comparison.to }
+
+  const [primaryRes, comparisonRes] = await Promise.all([
+    applyFilters(supabase.from('phishing_reports').select(select), primaryFilters),
+    applyFilters(supabase.from('phishing_reports').select(select), comparisonFilters),
+  ])
+
+  const byCountry = new Map<string, { primary: number; comparison: number }>()
+
+  for (const r of primaryRes.data ?? []) {
+    const nat = r.sender_nationality as string
+    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0 })
+    byCountry.get(nat)!.primary++
+  }
+  for (const r of comparisonRes.data ?? []) {
+    const nat = r.sender_nationality as string
+    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0 })
+    byCountry.get(nat)!.comparison++
+  }
+
+  return [...byCountry.entries()]
+    .map(([country, agg]) => ({
+      country,
+      primaryCases: agg.primary,
+      comparisonCases: agg.comparison,
+      deltaCases: agg.primary - agg.comparison,
+      deltaPct: agg.comparison > 0 ? ((agg.primary - agg.comparison) / agg.comparison) * 100 : null,
+    }))
+    .filter((r) => r.primaryCases > 0 || r.comparisonCases > 0)
+    .sort((a, b) => b.primaryCases - a.primaryCases)
 }

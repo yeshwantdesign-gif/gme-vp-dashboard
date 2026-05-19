@@ -23,6 +23,7 @@ import { CisAnalysis } from '@/components/dashboard/cis-analysis'
 import { AvgDamage } from '@/components/dashboard/avg-damage'
 import { MethodByMonth } from '@/components/dashboard/method-by-month'
 import { CountryLeaderboard } from '@/components/dashboard/country-leaderboard'
+import { PeriodComparison } from '@/components/dashboard/period-comparison'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLocale } from '@/contexts/locale-context'
 import type {
@@ -130,7 +131,13 @@ export function DashboardShell({
         </div>
       ) : charts ? (
         <>
-          <CountryLeaderboard data={charts.leaderboard} />
+          <CountryLeaderboard
+            data={charts.leaderboard}
+            latestMonth={kpi?.latestMonth ?? null}
+            previousMonth={kpi?.previousMonth ?? null}
+          />
+
+          <PeriodComparison baseFilters={filters} />
 
           <TrendByNationality
             months={charts.trend.months}

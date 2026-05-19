@@ -34,11 +34,17 @@ export function KpiStrip({
   const { locale, t, tCountry } = useLocale()
   const fmt = new Intl.NumberFormat(locale === 'ko' ? 'ko-KR' : 'en-US')
   const monthFmt = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'long' })
+  const shortMonthFmt = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short' })
 
   const range = `${dateFrom} ${locale === 'ko' ? '~' : 'to'} ${dateTo}`
   const lastMonthName = data.latestMonth
     ? monthFmt.format(new Date(`${data.latestMonth}-01T00:00:00`))
     : '—'
+  const momLabel = data.latestMonth && data.previousMonth
+    ? `${shortMonthFmt.format(new Date(`${data.latestMonth}-01T00:00:00`))} vs ${shortMonthFmt.format(new Date(`${data.previousMonth}-01T00:00:00`))}`
+    : data.latestMonth
+      ? `${shortMonthFmt.format(new Date(`${data.latestMonth}-01T00:00:00`))} ${locale === 'ko' ? '(이전 월 없음)' : '(no prior month)'}`
+      : range
 
   const momUp = data.momChange !== null && data.momChange > 0
   const momClass = data.momChange !== null
@@ -64,7 +70,7 @@ export function KpiStrip({
       />
       <KpiCard
         label={t('dashboard.kpi.monthOverMonth')}
-        sub={`(${range})`}
+        sub={`(${momLabel})`}
         value={
           data.momChange !== null ? (
             <span className={`flex items-center gap-1.5 ${momClass}`}>

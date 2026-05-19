@@ -12,8 +12,20 @@ type SortDir = 'asc' | 'desc'
 
 const DEFAULT_VISIBLE = 12
 
-export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) {
+export function CountryLeaderboard({
+  data,
+  latestMonth,
+  previousMonth,
+}: {
+  data: CountryLeaderboardRow[]
+  latestMonth: string | null
+  previousMonth: string | null
+}) {
   const { locale, t, tCountry, tMethod, tMethodCategory } = useLocale()
+  const shortMonthFmt = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short' })
+  const momSuffix = latestMonth && previousMonth
+    ? ` (${shortMonthFmt.format(new Date(`${latestMonth}-01T00:00:00`))} vs ${shortMonthFmt.format(new Date(`${previousMonth}-01T00:00:00`))})`
+    : ''
   const [sortKey, setSortKey] = useState<SortKey>('totalCases')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [showAll, setShowAll] = useState(false)
@@ -51,7 +63,7 @@ export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) 
     { key: 'country', label: t('dashboard.leaderboard.country') },
     { key: 'totalCases', label: t('dashboard.leaderboard.totalCases') },
     { key: 'latestMonthCases', label: t('dashboard.leaderboard.latestMonth') },
-    { key: 'momChange', label: t('dashboard.leaderboard.momChange') },
+    { key: 'momChange', label: `${t('dashboard.leaderboard.momChange')}${momSuffix}` },
     { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage') },
     { key: 'avgKrw', label: t('dashboard.leaderboard.avgDamage') },
     { key: 'methodCategory', label: t('dashboard.transactionMethod') },

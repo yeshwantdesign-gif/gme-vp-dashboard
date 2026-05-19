@@ -11,6 +11,7 @@ export interface KpiData {
   totalCases: number
   latestMonthCases: number
   latestMonth: string | null
+  previousMonth: string | null
   topCountry: string
   momChange: number | null
 }
