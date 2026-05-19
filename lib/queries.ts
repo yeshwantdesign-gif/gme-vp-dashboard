@@ -543,16 +543,23 @@ export async function getPeriodComparison(
     byCountry.get(nat)!.comparison++
   }
 
+  // Difference is computed in chronological direction: (later period − earlier period).
+  // So a positive Δ always means "cases went up over time" (= more phishing = bad/red),
+  // regardless of which picker the user put the newer period in.
+  const primaryIsLater = primary.from > comparison.from
+
   return [...byCountry.entries()]
-    .map(([country, agg]) => ({
-      country,
-      primaryCases: agg.primary,
-      comparisonCases: agg.comparison,
-      // Difference reads left-to-right: change from Period → Compare with.
-      // Positive = went up (more phishing = bad); negative = went down.
-      deltaCases: agg.comparison - agg.primary,
-      deltaPct: agg.primary > 0 ? ((agg.comparison - agg.primary) / agg.primary) * 100 : null,
-    }))
+    .map(([country, agg]) => {
+      const later = primaryIsLater ? agg.primary : agg.comparison
+      const earlier = primaryIsLater ? agg.comparison : agg.primary
+      return {
+        country,
+        primaryCases: agg.primary,
+        comparisonCases: agg.comparison,
+        deltaCases: later - earlier,
+        deltaPct: earlier > 0 ? ((later - earlier) / earlier) * 100 : null,
+      }
+    })
     .filter((r) => r.primaryCases > 0 || r.comparisonCases > 0)
     .sort((a, b) => b.primaryCases - a.primaryCases)
 }
