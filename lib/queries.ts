@@ -110,14 +110,41 @@ export async function getKpiStrip(
 
 // ─── Country Leaderboard ─────────────────────────────────────
 
+async function getRemittanceTotalsByCountry(
+  supabase: SupabaseClient,
+  dateFrom: string,
+  dateTo: string,
+): Promise<Map<string, number>> {
+  // Include every monthly bucket overlapping the filter range.
+  // (Filter ranges that don't align to month boundaries will fold in the
+  // full month — acceptable approximation given data is monthly-aggregated.)
+  const fromMonth = dateFrom.slice(0, 7)
+  const toMonth = dateTo.slice(0, 7)
+  const { data } = await supabase
+    .from('country_remittance_monthly')
+    .select('country, total_txn')
+    .gte('month', fromMonth)
+    .lte('month', toMonth)
+  const map = new Map<string, number>()
+  for (const r of data ?? []) {
+    const c = r.country as string
+    const n = Number(r.total_txn) || 0
+    map.set(c, (map.get(c) ?? 0) + n)
+  }
+  return map
+}
+
 export async function getCountryLeaderboard(
   supabase: SupabaseClient,
   filters: Filters
 ): Promise<CountryLeaderboardRow[]> {
-  const { data: rows } = await applyFilters(
-    supabase.from('phishing_reports').select('sender_nationality, deposit_amount_krw, transaction_method, report_date, deposit_date'),
-    filters
-  )
+  const [{ data: rows }, remittance] = await Promise.all([
+    applyFilters(
+      supabase.from('phishing_reports').select('sender_nationality, deposit_amount_krw, transaction_method, report_date, deposit_date'),
+      filters,
+    ),
+    getRemittanceTotalsByCountry(supabase, filters.dateFrom, filters.dateTo),
+  ])
 
   if (!rows || rows.length === 0) return []
 
@@ -173,6 +200,9 @@ export async function getCountryLeaderboard(
       }
     }
 
+    const totalTxn = remittance.get(country) ?? null
+    const ratePer1k = totalTxn && totalTxn > 0 ? (agg.total / totalTxn) * 1000 : null
+
     result.push({
       country,
       totalCases: agg.total,
@@ -182,6 +212,8 @@ export async function getCountryLeaderboard(
       avgKrw: agg.total > 0 ? Math.round(agg.sumKrw / agg.total) : 0,
       primaryMethod,
       primaryMethodPct: agg.total > 0 ? (primaryMethodCount / agg.total) * 100 : 0,
+      totalTxn,
+      ratePer1k,
     })
   }
 

@@ -30,6 +30,8 @@ export interface CountryLeaderboardRow {
   avgKrw: number
   primaryMethod: string
   primaryMethodPct: number
+  totalTxn: number | null         // total remittance transactions in range; null if unknown
+  ratePer1k: number | null        // phishing cases per 1,000 remittance txns
 }
 
 export interface CountryShareRow {

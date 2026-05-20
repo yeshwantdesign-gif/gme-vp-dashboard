@@ -5,9 +5,10 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp, TrendingDown } from
 import { Button } from '@/components/ui/button'
 import { useLocale } from '@/contexts/locale-context'
 import { methodToCategory } from '@/lib/method-categories'
+import { riskTier, RISK_TIER_BADGE_CLASS } from '@/lib/risk-tier'
 import type { CountryLeaderboardRow } from '@/lib/types'
 
-type SortKey = keyof Pick<CountryLeaderboardRow, 'totalCases' | 'latestMonthCases' | 'momChange' | 'totalKrw' | 'avgKrw'>
+type SortKey = keyof Pick<CountryLeaderboardRow, 'totalCases' | 'latestMonthCases' | 'momChange' | 'totalKrw' | 'avgKrw' | 'totalTxn' | 'ratePer1k'>
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_VISIBLE = 12
@@ -59,26 +60,32 @@ export function CountryLeaderboard({
       : <ChevronUp className="ml-1 inline h-3.5 w-3.5" />
   }
 
-  const columns: { key: SortKey | 'country' | 'primaryMethod' | 'methodCategory'; label: string }[] = [
+  const columns: { key: SortKey | 'country' | 'primaryMethod' | 'methodCategory' | 'riskTier'; label: string }[] = [
     { key: 'country', label: t('dashboard.leaderboard.country') },
     { key: 'totalCases', label: t('dashboard.leaderboard.totalCases') },
     { key: 'latestMonthCases', label: t('dashboard.leaderboard.latestMonth') },
     { key: 'momChange', label: `${t('dashboard.leaderboard.momChange')}${momSuffix}` },
     { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage') },
     { key: 'avgKrw', label: t('dashboard.leaderboard.avgDamage') },
+    { key: 'totalTxn', label: t('dashboard.leaderboard.totalTxn') },
+    { key: 'ratePer1k', label: t('dashboard.leaderboard.ratePer1k') },
+    { key: 'riskTier', label: t('dashboard.leaderboard.riskTier') },
     { key: 'methodCategory', label: t('dashboard.transactionMethod') },
     { key: 'primaryMethod', label: t('dashboard.leaderboard.primaryMethod') },
   ]
 
   return (
     <div className="glass-card">
-      <h3 className="mb-4 text-base font-semibold tracking-tight">{t('dashboard.leaderboard.title')}</h3>
+      <h3 className="mb-1 text-base font-semibold tracking-tight">{t('dashboard.leaderboard.title')}</h3>
+      <p className="mb-4 text-xs text-[var(--text-secondary)]">
+        {t('dashboard.leaderboard.riskNote')}
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--border)]">
               {columns.map((col, idx) => {
-                const sortable = col.key !== 'country' && col.key !== 'primaryMethod' && col.key !== 'methodCategory'
+                const sortable = col.key !== 'country' && col.key !== 'primaryMethod' && col.key !== 'methodCategory' && col.key !== 'riskTier'
                 return (
                   <th
                     key={col.key}
@@ -93,6 +100,46 @@ export function CountryLeaderboard({
             </tr>
           </thead>
           <tbody>
+            {(() => {
+              const totalCases = sorted.reduce((acc, r) => acc + r.totalCases, 0)
+              const totalLatest = sorted.reduce((acc, r) => acc + r.latestMonthCases, 0)
+              const totalKrw = sorted.reduce((acc, r) => acc + r.totalKrw, 0)
+              const totalTxn = sorted.reduce((acc, r) => acc + (r.totalTxn ?? 0), 0)
+              const avgKrw = totalCases > 0 ? Math.round(totalKrw / totalCases) : 0
+              const overallRate = totalTxn > 0 ? (totalCases / totalTxn) * 1000 : null
+              const overallPct = totalTxn > 0 ? (totalCases / totalTxn) * 100 : null
+              const tier = riskTier(overallRate)
+              return (
+                <tr className="border-b-2 border-[var(--border)] font-semibold">
+                  <td className="py-2 text-left">{t('dashboard.leaderboard.total')}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalCases)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalLatest)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums text-[var(--text-muted)]">—</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(totalKrw)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(avgKrw)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {totalTxn === 0 ? '—' : numFmt.format(totalTxn)}
+                  </td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {overallRate === null ? '—' : (
+                      <span>
+                        {overallRate.toFixed(2)}
+                        <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
+                          ({overallPct!.toFixed(2)}%)
+                        </span>
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 pl-6 text-left">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
+                      {t(`dashboard.riskTiers.${tier}`)}
+                    </span>
+                  </td>
+                  <td className="py-2 pl-6 text-left text-[var(--text-muted)]">—</td>
+                  <td className="py-2 pl-6 text-left text-[var(--text-muted)]">—</td>
+                </tr>
+              )
+            })()}
             {visible.map((row, i) => {
               const rank = sortKey === 'totalCases' && sortDir === 'desc' ? i + 1 : null
               const momUp = row.momChange !== null && row.momChange > 0
@@ -122,6 +169,29 @@ export function CountryLeaderboard({
                   </td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.totalKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.avgKrw)}</td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {row.totalTxn === null ? '—' : numFmt.format(row.totalTxn)}
+                  </td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {row.ratePer1k === null ? '—' : (
+                      <span>
+                        {row.ratePer1k.toFixed(2)}
+                        <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
+                          ({(row.ratePer1k / 10).toFixed(2)}%)
+                        </span>
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 pl-6 text-left">
+                    {(() => {
+                      const tier = riskTier(row.ratePer1k)
+                      return (
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
+                          {t(`dashboard.riskTiers.${tier}`)}
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td className="py-2 pl-6 text-left">
                     {tMethodCategory(methodToCategory(row.primaryMethod))}
                   </td>

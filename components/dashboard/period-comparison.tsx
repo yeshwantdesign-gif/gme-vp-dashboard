@@ -284,6 +284,37 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
               </tr>
             </thead>
             <tbody>
+              {(() => {
+                const totalPrimary = rows.reduce((acc, r) => acc + r.primaryCases, 0)
+                const totalComparison = rows.reduce((acc, r) => acc + r.comparisonCases, 0)
+                const totalDelta = rows.reduce((acc, r) => acc + r.deltaCases, 0)
+                const primaryIsLater = primary.from > compareRange.from
+                const totalEarlier = primaryIsLater ? totalComparison : totalPrimary
+                const totalDeltaPct = totalEarlier > 0 ? (totalDelta / totalEarlier) * 100 : null
+                const up = totalDelta > 0
+                const down = totalDelta < 0
+                const cls = up ? 'metric-delta-up' : down ? 'metric-delta-down' : ''
+                return (
+                  <tr className="border-b-2 border-[var(--border)] font-semibold">
+                    <td className="py-2 text-left">{t('dashboard.periodComparison.total')}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalPrimary)}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalComparison)}</td>
+                    <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
+                      {up ? '+' : ''}{numFmt.format(totalDelta)}
+                    </td>
+                    <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
+                      {totalDeltaPct === null ? '—' : (
+                        <span className="inline-flex items-center gap-1">
+                          {up ? <TrendingUp className="h-3.5 w-3.5" />
+                            : down ? <TrendingDown className="h-3.5 w-3.5" />
+                            : null}
+                          {up ? '+' : ''}{totalDeltaPct.toFixed(1)}%
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })()}
               {rows.map((r) => {
                 const up = r.deltaCases > 0
                 const down = r.deltaCases < 0
