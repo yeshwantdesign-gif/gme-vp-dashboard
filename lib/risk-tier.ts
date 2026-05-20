@@ -1,15 +1,15 @@
 export type RiskTier = 'critical' | 'high' | 'medium' | 'low' | 'unknown'
 
-// Cases per 1,000 remittance transactions
-const CRITICAL = 5
-const HIGH = 2
-const MEDIUM = 0.5
+// Phishing KRW as % of overseas remittance KRW for the period
+const CRITICAL = 1.0
+const HIGH = 0.3
+const MEDIUM = 0.1
 
-export function riskTier(ratePer1k: number | null): RiskTier {
-  if (ratePer1k == null || !isFinite(ratePer1k)) return 'unknown'
-  if (ratePer1k >= CRITICAL) return 'critical'
-  if (ratePer1k >= HIGH) return 'high'
-  if (ratePer1k >= MEDIUM) return 'medium'
+export function riskTier(pct: number | null): RiskTier {
+  if (pct == null || !isFinite(pct)) return 'unknown'
+  if (pct >= CRITICAL) return 'critical'
+  if (pct >= HIGH) return 'high'
+  if (pct >= MEDIUM) return 'medium'
   return 'low'
 }
 

@@ -1,32 +1,23 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronUp, ChevronDown, ChevronsUpDown, TrendingUp, TrendingDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLocale } from '@/contexts/locale-context'
 import { methodToCategory } from '@/lib/method-categories'
 import { riskTier, RISK_TIER_BADGE_CLASS } from '@/lib/risk-tier'
 import type { CountryLeaderboardRow } from '@/lib/types'
 
-type SortKey = keyof Pick<CountryLeaderboardRow, 'totalCases' | 'latestMonthCases' | 'momChange' | 'totalKrw' | 'avgKrw' | 'totalTxn' | 'ratePer1k'>
+type SortKey = keyof Pick<
+  CountryLeaderboardRow,
+  'totalCases' | 'totalKrw' | 'avgKrw' | 'overseasTotalKrw' | 'overseasPhishingKrw' | 'overseasPhishingPct'
+>
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_VISIBLE = 12
 
-export function CountryLeaderboard({
-  data,
-  latestMonth,
-  previousMonth,
-}: {
-  data: CountryLeaderboardRow[]
-  latestMonth: string | null
-  previousMonth: string | null
-}) {
+export function CountryLeaderboard({ data }: { data: CountryLeaderboardRow[] }) {
   const { locale, t, tCountry, tMethod, tMethodCategory } = useLocale()
-  const shortMonthFmt = new Intl.DateTimeFormat(locale === 'ko' ? 'ko-KR' : 'en-US', { month: 'short' })
-  const momSuffix = latestMonth && previousMonth
-    ? ` (${shortMonthFmt.format(new Date(`${latestMonth}-01T00:00:00`))} vs ${shortMonthFmt.format(new Date(`${previousMonth}-01T00:00:00`))})`
-    : ''
   const [sortKey, setSortKey] = useState<SortKey>('totalCases')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [showAll, setShowAll] = useState(false)
@@ -60,15 +51,15 @@ export function CountryLeaderboard({
       : <ChevronUp className="ml-1 inline h-3.5 w-3.5" />
   }
 
-  const columns: { key: SortKey | 'country' | 'primaryMethod' | 'methodCategory' | 'riskTier'; label: string }[] = [
+  type ColKey = SortKey | 'country' | 'primaryMethod' | 'methodCategory' | 'riskTier'
+  const columns: { key: ColKey; label: string }[] = [
     { key: 'country', label: t('dashboard.leaderboard.country') },
     { key: 'totalCases', label: t('dashboard.leaderboard.totalCases') },
-    { key: 'latestMonthCases', label: t('dashboard.leaderboard.latestMonth') },
-    { key: 'momChange', label: `${t('dashboard.leaderboard.momChange')}${momSuffix}` },
     { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage') },
     { key: 'avgKrw', label: t('dashboard.leaderboard.avgDamage') },
-    { key: 'totalTxn', label: t('dashboard.leaderboard.totalTxn') },
-    { key: 'ratePer1k', label: t('dashboard.leaderboard.ratePer1k') },
+    { key: 'overseasTotalKrw', label: t('dashboard.leaderboard.overseasTotalKrw') },
+    { key: 'overseasPhishingKrw', label: t('dashboard.leaderboard.overseasPhishingKrw') },
+    { key: 'overseasPhishingPct', label: t('dashboard.leaderboard.overseasPhishingPct') },
     { key: 'riskTier', label: t('dashboard.leaderboard.riskTier') },
     { key: 'methodCategory', label: t('dashboard.transactionMethod') },
     { key: 'primaryMethod', label: t('dashboard.leaderboard.primaryMethod') },
@@ -85,7 +76,11 @@ export function CountryLeaderboard({
           <thead>
             <tr className="border-b border-[var(--border)]">
               {columns.map((col, idx) => {
-                const sortable = col.key !== 'country' && col.key !== 'primaryMethod' && col.key !== 'methodCategory' && col.key !== 'riskTier'
+                const sortable =
+                  col.key !== 'country' &&
+                  col.key !== 'primaryMethod' &&
+                  col.key !== 'methodCategory' &&
+                  col.key !== 'riskTier'
                 return (
                   <th
                     key={col.key}
@@ -102,33 +97,25 @@ export function CountryLeaderboard({
           <tbody>
             {(() => {
               const totalCases = sorted.reduce((acc, r) => acc + r.totalCases, 0)
-              const totalLatest = sorted.reduce((acc, r) => acc + r.latestMonthCases, 0)
               const totalKrw = sorted.reduce((acc, r) => acc + r.totalKrw, 0)
-              const totalTxn = sorted.reduce((acc, r) => acc + (r.totalTxn ?? 0), 0)
               const avgKrw = totalCases > 0 ? Math.round(totalKrw / totalCases) : 0
-              const overallRate = totalTxn > 0 ? (totalCases / totalTxn) * 1000 : null
-              const overallPct = totalTxn > 0 ? (totalCases / totalTxn) * 100 : null
-              const tier = riskTier(overallRate)
+              const overseasTotalKrw = sorted.reduce((acc, r) => acc + (r.overseasTotalKrw ?? 0), 0)
+              const overseasPhishingKrw = sorted.reduce((acc, r) => acc + r.overseasPhishingKrw, 0)
+              const overseasPhishingPct =
+                overseasTotalKrw > 0 ? (overseasPhishingKrw / overseasTotalKrw) * 100 : null
+              const tier = riskTier(overseasPhishingPct)
               return (
                 <tr className="border-b-2 border-[var(--border)] font-semibold">
                   <td className="py-2 text-left">{t('dashboard.leaderboard.total')}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalCases)}</td>
-                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalLatest)}</td>
-                  <td className="py-2 pl-6 text-left tabular-nums text-[var(--text-muted)]">—</td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(totalKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(avgKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">
-                    {totalTxn === 0 ? '—' : numFmt.format(totalTxn)}
+                    {overseasTotalKrw === 0 ? '—' : krwFmt.format(overseasTotalKrw)}
                   </td>
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(overseasPhishingKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">
-                    {overallRate === null ? '—' : (
-                      <span>
-                        {overallRate.toFixed(2)}
-                        <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
-                          ({overallPct!.toFixed(2)}%)
-                        </span>
-                      </span>
-                    )}
+                    {overseasPhishingPct === null ? '—' : `${overseasPhishingPct.toFixed(2)}%`}
                   </td>
                   <td className="py-2 pl-6 text-left">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
@@ -142,11 +129,6 @@ export function CountryLeaderboard({
             })()}
             {visible.map((row, i) => {
               const rank = sortKey === 'totalCases' && sortDir === 'desc' ? i + 1 : null
-              const momUp = row.momChange !== null && row.momChange > 0
-              const momClass = row.momChange !== null
-                ? (momUp ? 'metric-delta-up' : 'metric-delta-down')
-                : ''
-
               return (
                 <tr key={row.country} className="border-b border-[var(--border)] last:border-0">
                   <td className="py-2 text-left">
@@ -156,35 +138,18 @@ export function CountryLeaderboard({
                     {tCountry(row.country)}
                   </td>
                   <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(row.totalCases)}</td>
-                  <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(row.latestMonthCases)}</td>
-                  <td className={`py-2 pl-6 text-left tabular-nums ${momClass}`}>
-                    {row.momChange !== null ? (
-                      <span className="inline-flex items-center gap-1">
-                        {momUp
-                          ? <TrendingUp className="h-3.5 w-3.5" />
-                          : <TrendingDown className="h-3.5 w-3.5" />}
-                        {momUp ? '+' : ''}{row.momChange.toFixed(1)}%
-                      </span>
-                    ) : '—'}
-                  </td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.totalKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.avgKrw)}</td>
                   <td className="py-2 pl-6 text-left tabular-nums">
-                    {row.totalTxn === null ? '—' : numFmt.format(row.totalTxn)}
+                    {row.overseasTotalKrw === null ? '—' : krwFmt.format(row.overseasTotalKrw)}
                   </td>
-                  <td className="py-2 pl-6 text-left tabular-nums">
-                    {row.ratePer1k === null ? '—' : (
-                      <span>
-                        {row.ratePer1k.toFixed(2)}
-                        <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
-                          ({(row.ratePer1k / 10).toFixed(2)}%)
-                        </span>
-                      </span>
-                    )}
+                  <td className="py-2 pl-6 text-left tabular-nums">{krwFmt.format(row.overseasPhishingKrw)}</td>
+                  <td className="py-2 pl-6 text-left font-semibold tabular-nums">
+                    {row.overseasPhishingPct === null ? '—' : `${row.overseasPhishingPct.toFixed(2)}%`}
                   </td>
                   <td className="py-2 pl-6 text-left">
                     {(() => {
-                      const tier = riskTier(row.ratePer1k)
+                      const tier = riskTier(row.overseasPhishingPct)
                       return (
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
                           {t(`dashboard.riskTiers.${tier}`)}

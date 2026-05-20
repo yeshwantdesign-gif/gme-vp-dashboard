@@ -104,16 +104,6 @@ export function DashboardShell({
     <div className="mx-auto max-w-7xl space-y-6">
       <h1 className="dashboard-title text-3xl">{t('dashboard.title')}</h1>
 
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-[var(--gme-radius)]" />
-          ))}
-        </div>
-      ) : kpi ? (
-        <KpiStrip data={kpi} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />
-      ) : null}
-
       <FilterBar
         filters={filters}
         onFiltersChange={setFilters}
@@ -121,6 +111,16 @@ export function DashboardShell({
         channels={channels}
         transactionMethods={transactionMethods}
       />
+
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-[var(--gme-radius)]" />
+          ))}
+        </div>
+      ) : kpi ? (
+        <KpiStrip data={kpi} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />
+      ) : null}
 
       {loading ? (
         <div className="space-y-6">
@@ -131,11 +131,7 @@ export function DashboardShell({
         </div>
       ) : charts ? (
         <>
-          <CountryLeaderboard
-            data={charts.leaderboard}
-            latestMonth={kpi?.latestMonth ?? null}
-            previousMonth={kpi?.previousMonth ?? null}
-          />
+          <CountryLeaderboard data={charts.leaderboard} />
 
           <PeriodComparison baseFilters={filters} />
 

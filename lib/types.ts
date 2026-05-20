@@ -26,12 +26,13 @@ export interface CountryLeaderboardRow {
   totalCases: number
   latestMonthCases: number
   momChange: number | null
-  totalKrw: number
+  totalKrw: number                       // total phishing amount (all methods)
   avgKrw: number
   primaryMethod: string
   primaryMethodPct: number
-  totalTxn: number | null         // total remittance transactions in range; null if unknown
-  ratePer1k: number | null        // phishing cases per 1,000 remittance txns
+  overseasTotalKrw: number | null        // legitimate overseas remittance KRW for the period
+  overseasPhishingKrw: number             // phishing KRW from overseas-category methods
+  overseasPhishingPct: number | null      // overseasPhishingKrw / overseasTotalKrw * 100
 }
 
 export interface CountryShareRow {

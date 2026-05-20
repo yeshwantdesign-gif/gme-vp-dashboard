@@ -114,7 +114,7 @@ async function getRemittanceTotalsByCountry(
   supabase: SupabaseClient,
   dateFrom: string,
   dateTo: string,
-): Promise<Map<string, number>> {
+): Promise<Map<string, { totalAmountKrw: number }>> {
   // Include every monthly bucket overlapping the filter range.
   // (Filter ranges that don't align to month boundaries will fold in the
   // full month — acceptable approximation given data is monthly-aggregated.)
@@ -122,14 +122,15 @@ async function getRemittanceTotalsByCountry(
   const toMonth = dateTo.slice(0, 7)
   const { data } = await supabase
     .from('country_remittance_monthly')
-    .select('country, total_txn')
+    .select('country, total_amount_krw')
     .gte('month', fromMonth)
     .lte('month', toMonth)
-  const map = new Map<string, number>()
+  const map = new Map<string, { totalAmountKrw: number }>()
   for (const r of data ?? []) {
     const c = r.country as string
-    const n = Number(r.total_txn) || 0
-    map.set(c, (map.get(c) ?? 0) + n)
+    const amt = Number(r.total_amount_krw) || 0
+    const prev = map.get(c) ?? { totalAmountKrw: 0 }
+    map.set(c, { totalAmountKrw: prev.totalAmountKrw + amt })
   }
   return map
 }
@@ -154,7 +155,13 @@ export async function getCountryLeaderboard(
   const allMonths = new Set<string>()
   const countries = new Map<
     string,
-    { total: number; sumKrw: number; byMonth: Map<string, number>; byMethod: Map<string, number> }
+    {
+      total: number
+      sumKrw: number
+      overseasPhishingKrw: number
+      byMonth: Map<string, number>
+      byMethod: Map<string, number>
+    }
   >()
 
   for (const r of rows) {
@@ -164,13 +171,24 @@ export async function getCountryLeaderboard(
     allMonths.add(month)
     const nat = r.sender_nationality as string
     const amt = Number(r.deposit_amount_krw) || 0
+    const method = (r.transaction_method as string) || 'Unknown'
 
-    if (!countries.has(nat)) countries.set(nat, { total: 0, sumKrw: 0, byMonth: new Map(), byMethod: new Map() })
+    if (!countries.has(nat)) {
+      countries.set(nat, {
+        total: 0,
+        sumKrw: 0,
+        overseasPhishingKrw: 0,
+        byMonth: new Map(),
+        byMethod: new Map(),
+      })
+    }
     const c = countries.get(nat)!
     c.total++
     c.sumKrw += amt
+    if (methodToCategory(method) === 'OVERSEAS') {
+      c.overseasPhishingKrw += amt
+    }
     c.byMonth.set(month, (c.byMonth.get(month) ?? 0) + 1)
-    const method = (r.transaction_method as string) || 'Unknown'
     c.byMethod.set(method, (c.byMethod.get(method) ?? 0) + 1)
   }
 
@@ -200,8 +218,13 @@ export async function getCountryLeaderboard(
       }
     }
 
-    const totalTxn = remittance.get(country) ?? null
-    const ratePer1k = totalTxn && totalTxn > 0 ? (agg.total / totalTxn) * 1000 : null
+    const remit = remittance.get(country)
+    const overseasTotalKrw = remit ? remit.totalAmountKrw : null
+    const overseasPhishingKrw = Math.round(agg.overseasPhishingKrw)
+    const overseasPhishingPct =
+      overseasTotalKrw && overseasTotalKrw > 0
+        ? (overseasPhishingKrw / overseasTotalKrw) * 100
+        : null
 
     result.push({
       country,
@@ -212,8 +235,9 @@ export async function getCountryLeaderboard(
       avgKrw: agg.total > 0 ? Math.round(agg.sumKrw / agg.total) : 0,
       primaryMethod,
       primaryMethodPct: agg.total > 0 ? (primaryMethodCount / agg.total) * 100 : 0,
-      totalTxn,
-      ratePer1k,
+      overseasTotalKrw,
+      overseasPhishingKrw,
+      overseasPhishingPct,
     })
   }
 
