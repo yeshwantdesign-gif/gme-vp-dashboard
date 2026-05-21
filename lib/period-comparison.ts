@@ -7,10 +7,16 @@ export interface DateRange {
 
 export interface PeriodComparisonRow {
   country: string
+  // count-based
   primaryCases: number
   comparisonCases: number
   deltaCases: number
   deltaPct: number | null
+  // amount-based (sum of deposit_amount_krw across all VP methods)
+  primaryKrw: number
+  comparisonKrw: number
+  deltaKrw: number
+  deltaKrwPct: number | null
 }
 
 function clipToToday(r: DateRange, today: string): DateRange {

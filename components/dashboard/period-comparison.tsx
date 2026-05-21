@@ -10,6 +10,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { Filters } from '@/lib/types'
 import { adjustRangesForToday } from '@/lib/period-comparison'
 import type { DateRange, PeriodComparisonRow } from '@/lib/period-comparison'
+import type { RiskMode } from '@/lib/risk-tier'
+import { InfoTooltip } from '@/components/shared/info-tooltip'
+
+const MODE_STORAGE_KEY = 'period-comparison-mode'
 
 type RangeType = 'year' | 'quarter' | 'month' | 'custom'
 type Quarter = 1 | 2 | 3 | 4
@@ -198,6 +202,15 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
 
   const [rows, setRows] = useState<PeriodComparisonRow[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<RiskMode>('amount')
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem(MODE_STORAGE_KEY) : null
+    if (stored === 'amount' || stored === 'cases') setMode(stored)
+  }, [])
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(MODE_STORAGE_KEY, mode)
+  }, [mode])
 
   useEffect(() => {
     let cancelled = false
@@ -219,12 +232,28 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
   }, [supabase, baseFilters, primary, compareRange])
 
   const numFmt = new Intl.NumberFormat(locale === 'ko' ? 'ko-KR' : 'en-US')
+  const krwFmt = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
+  const fmtMain = (r: PeriodComparisonRow, side: 'primary' | 'comparison') => {
+    if (mode === 'amount') {
+      return krwFmt.format(side === 'primary' ? r.primaryKrw : r.comparisonKrw)
+    }
+    return numFmt.format(side === 'primary' ? r.primaryCases : r.comparisonCases)
+  }
+  const rowDelta = (r: PeriodComparisonRow) => (mode === 'amount' ? r.deltaKrw : r.deltaCases)
+  const rowDeltaPct = (r: PeriodComparisonRow) => (mode === 'amount' ? r.deltaKrwPct : r.deltaPct)
+  const fmtDelta = (n: number) => (mode === 'amount' ? krwFmt.format(n) : numFmt.format(n))
 
   return (
     <div className="glass-card">
-      <h3 className="mb-1 text-base font-semibold tracking-tight">
-        {t('dashboard.periodComparison.title')}
-      </h3>
+      <div className="mb-1 flex items-start justify-between gap-3">
+        <h3 className="text-base font-semibold tracking-tight">
+          {t('dashboard.periodComparison.title')}
+        </h3>
+        <div className="flex items-center gap-1.5">
+          <ModeToggle mode={mode} onChange={setMode} t={t} />
+          <InfoTooltip text={t('dashboard.leaderboard.modeTooltip')} />
+        </div>
+      </div>
       <p className="mb-4 text-xs text-[var(--text-secondary)]">
         {t('dashboard.periodComparison.subtitle')}
       </p>
@@ -285,9 +314,11 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
             </thead>
             <tbody>
               {(() => {
-                const totalPrimary = rows.reduce((acc, r) => acc + r.primaryCases, 0)
-                const totalComparison = rows.reduce((acc, r) => acc + r.comparisonCases, 0)
-                const totalDelta = rows.reduce((acc, r) => acc + r.deltaCases, 0)
+                const totalPrimary = rows.reduce(
+                  (acc, r) => acc + (mode === 'amount' ? r.primaryKrw : r.primaryCases), 0)
+                const totalComparison = rows.reduce(
+                  (acc, r) => acc + (mode === 'amount' ? r.comparisonKrw : r.comparisonCases), 0)
+                const totalDelta = rows.reduce((acc, r) => acc + rowDelta(r), 0)
                 const primaryIsLater = primary.from > compareRange.from
                 const totalEarlier = primaryIsLater ? totalComparison : totalPrimary
                 const totalDeltaPct = totalEarlier > 0 ? (totalDelta / totalEarlier) * 100 : null
@@ -297,10 +328,10 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
                 return (
                   <tr className="border-b-2 border-[var(--border)] font-semibold">
                     <td className="py-2 text-left">{t('dashboard.periodComparison.total')}</td>
-                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalPrimary)}</td>
-                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(totalComparison)}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{fmtDelta(totalPrimary)}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{fmtDelta(totalComparison)}</td>
                     <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
-                      {up ? '+' : ''}{numFmt.format(totalDelta)}
+                      {up ? '+' : ''}{fmtDelta(totalDelta)}
                     </td>
                     <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
                       {totalDeltaPct === null ? '—' : (
@@ -316,24 +347,26 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
                 )
               })()}
               {rows.map((r) => {
-                const up = r.deltaCases > 0
-                const down = r.deltaCases < 0
+                const dCases = rowDelta(r)
+                const dPct = rowDeltaPct(r)
+                const up = dCases > 0
+                const down = dCases < 0
                 const cls = up ? 'metric-delta-up' : down ? 'metric-delta-down' : ''
                 return (
                   <tr key={r.country} className="border-b border-[var(--border)] last:border-0">
                     <td className="py-2 text-left">{tCountry(r.country)}</td>
-                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(r.primaryCases)}</td>
-                    <td className="py-2 pl-6 text-left tabular-nums">{numFmt.format(r.comparisonCases)}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{fmtMain(r, 'primary')}</td>
+                    <td className="py-2 pl-6 text-left tabular-nums">{fmtMain(r, 'comparison')}</td>
                     <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
-                      {up ? '+' : ''}{numFmt.format(r.deltaCases)}
+                      {up ? '+' : ''}{fmtDelta(dCases)}
                     </td>
                     <td className={`py-2 pl-6 text-left tabular-nums ${cls}`}>
-                      {r.deltaPct === null ? '—' : (
+                      {dPct === null ? '—' : (
                         <span className="inline-flex items-center gap-1">
                           {up ? <TrendingUp className="h-3.5 w-3.5" />
                             : down ? <TrendingDown className="h-3.5 w-3.5" />
                             : null}
-                          {up ? '+' : ''}{r.deltaPct.toFixed(1)}%
+                          {up ? '+' : ''}{dPct.toFixed(1)}%
                         </span>
                       )}
                     </td>
@@ -344,6 +377,40 @@ export function PeriodComparison({ baseFilters }: { baseFilters: Filters }) {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+function ModeToggle({
+  mode, onChange, t,
+}: {
+  mode: RiskMode
+  onChange: (m: RiskMode) => void
+  t: (key: string) => string
+}) {
+  const options: { value: RiskMode; label: string }[] = [
+    { value: 'amount', label: t('dashboard.leaderboard.modeAmount') },
+    { value: 'cases',  label: t('dashboard.leaderboard.modeCases') },
+  ]
+  return (
+    <div className="inline-flex shrink-0 overflow-hidden rounded-[var(--gme-radius-sm)] border border-[var(--border)] text-xs">
+      {options.map((o) => {
+        const active = o.value === mode
+        return (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={
+              'px-3 py-1 transition-colors ' +
+              (active
+                ? 'bg-[var(--surface)] font-medium'
+                : 'hover:bg-[var(--surface)] text-[var(--text-secondary)]')
+            }
+          >
+            {o.label}
+          </button>
+        )
+      })}
     </div>
   )
 }

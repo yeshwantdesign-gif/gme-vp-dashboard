@@ -1,15 +1,21 @@
 export type RiskTier = 'critical' | 'high' | 'medium' | 'low' | 'unknown'
+export type RiskMode = 'amount' | 'cases'
 
-// Phishing KRW as % of overseas remittance KRW for the period
-const CRITICAL = 1.0
-const HIGH = 0.3
-const MEDIUM = 0.1
+// Amount-based: % of overseas remittance KRW that was phishing
+const AMOUNT_THRESHOLDS = { critical: 1.0, high: 0.3, medium: 0.1 }
+// Cases-based: % of overseas remittance transactions that were phishing
+const CASES_THRESHOLDS  = { critical: 0.5, high: 0.2, medium: 0.05 }
 
-export function riskTier(pct: number | null): RiskTier {
+export function thresholdsFor(mode: RiskMode) {
+  return mode === 'amount' ? AMOUNT_THRESHOLDS : CASES_THRESHOLDS
+}
+
+export function riskTier(pct: number | null, mode: RiskMode = 'amount'): RiskTier {
   if (pct == null || !isFinite(pct)) return 'unknown'
-  if (pct >= CRITICAL) return 'critical'
-  if (pct >= HIGH) return 'high'
-  if (pct >= MEDIUM) return 'medium'
+  const t = thresholdsFor(mode)
+  if (pct >= t.critical) return 'critical'
+  if (pct >= t.high) return 'high'
+  if (pct >= t.medium) return 'medium'
   return 'low'
 }
 

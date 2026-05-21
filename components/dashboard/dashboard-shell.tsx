@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { RiskMode } from '@/lib/risk-tier'
+
+const MODE_STORAGE_KEY = 'leaderboard-mode'
 import { format, subMonths, endOfMonth, startOfMonth } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -76,6 +79,17 @@ export function DashboardShell({
   const [kpi, setKpi] = useState<KpiData | null>(null)
   const [charts, setCharts] = useState<ChartData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<RiskMode>('amount')
+
+  // Shared Amount/Cases toggle — KPI strip and leaderboard read from this.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(MODE_STORAGE_KEY)
+    if (stored === 'amount' || stored === 'cases') setMode(stored)
+  }, [])
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(MODE_STORAGE_KEY, mode)
+  }, [mode])
   const supabase = createClient()
   const { t } = useLocale()
 
@@ -119,7 +133,7 @@ export function DashboardShell({
           ))}
         </div>
       ) : kpi ? (
-        <KpiStrip data={kpi} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />
+        <KpiStrip data={kpi} dateFrom={filters.dateFrom} dateTo={filters.dateTo} mode={mode} onModeChange={setMode} />
       ) : null}
 
       {loading ? (
@@ -131,7 +145,7 @@ export function DashboardShell({
         </div>
       ) : charts ? (
         <>
-          <CountryLeaderboard data={charts.leaderboard} />
+          <CountryLeaderboard data={charts.leaderboard} mode={mode} onModeChange={setMode} />
 
           <PeriodComparison baseFilters={filters} />
 

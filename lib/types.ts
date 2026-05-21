@@ -9,6 +9,11 @@ export interface Filters {
 
 export interface KpiData {
   totalCases: number
+  totalKrw: number                       // all-method phishing KRW
+  overseasPhishingCases: number
+  overseasPhishingKrw: number
+  domesticPhishingCases: number
+  domesticPhishingKrw: number
   latestMonthCases: number
   latestMonth: string | null
   previousMonth: string | null
@@ -30,9 +35,18 @@ export interface CountryLeaderboardRow {
   avgKrw: number
   primaryMethod: string
   primaryMethodPct: number
-  overseasTotalKrw: number | null        // legitimate overseas remittance KRW for the period
-  overseasPhishingKrw: number             // phishing KRW from overseas-category methods
-  overseasPhishingPct: number | null      // overseasPhishingKrw / overseasTotalKrw * 100
+  overseasTotalKrw: number | null         // legitimate overseas remittance KRW for the period
+  overseasPhishingKrw: number              // phishing KRW from overseas-category methods
+  overseasPhishingPct: number | null       // overseasPhishingKrw / overseasTotalKrw * 100
+  overseasTotalTxn: number | null          // legitimate overseas remittance transactions
+  overseasPhishingCases: number            // phishing case count from overseas-category methods
+  overseasPhishingCasePct: number | null   // overseasPhishingCases / overseasTotalTxn * 100
+  domesticTotalKrw: number | null         // legitimate domestic transfer KRW
+  domesticPhishingKrw: number              // phishing KRW from domestic-category methods
+  domesticPhishingPct: number | null       // domesticPhishingKrw / domesticTotalKrw * 100
+  domesticTotalTxn: number | null          // legitimate domestic transfer transactions
+  domesticPhishingCases: number            // phishing case count from domestic-category methods
+  domesticPhishingCasePct: number | null   // domesticPhishingCases / domesticTotalTxn * 100
 }
 
 export interface CountryShareRow {

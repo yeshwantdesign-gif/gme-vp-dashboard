@@ -38,6 +38,7 @@ _seed/
 *.csv
 *.pdf
 Overseas Transfer Native Country Wise Txn Report/
+Local Transfer Report/
 
 # vercel
 .vercel

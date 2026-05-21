@@ -48,13 +48,18 @@ export async function getKpiStrip(
   )
 
   const { data: rows } = await applyFilters(
-    supabase.from('phishing_reports').select('sender_nationality, report_date, deposit_date'),
+    supabase.from('phishing_reports').select('sender_nationality, deposit_amount_krw, transaction_method, report_date, deposit_date'),
     filters
   )
 
   if (!rows || rows.length === 0) {
     return {
       totalCases: totalCases ?? 0,
+      totalKrw: 0,
+      overseasPhishingCases: 0,
+      overseasPhishingKrw: 0,
+      domesticPhishingCases: 0,
+      domesticPhishingKrw: 0,
       latestMonthCases: 0,
       latestMonth: null,
       previousMonth: null,
@@ -66,6 +71,11 @@ export async function getKpiStrip(
   const col = filters.dateBasis
   const byMonth = new Map<string, number>()
   const byCountry = new Map<string, number>()
+  let totalKrw = 0
+  let overseasPhishingCases = 0
+  let overseasPhishingKrw = 0
+  let domesticPhishingCases = 0
+  let domesticPhishingKrw = 0
 
   for (const r of rows) {
     const dateVal = r[col] as string | null
@@ -74,6 +84,16 @@ export async function getKpiStrip(
     byMonth.set(month, (byMonth.get(month) ?? 0) + 1)
     const nat = r.sender_nationality as string
     byCountry.set(nat, (byCountry.get(nat) ?? 0) + 1)
+    const amt = Number(r.deposit_amount_krw) || 0
+    totalKrw += amt
+    const cat = methodToCategory((r.transaction_method as string) || 'Unknown')
+    if (cat === 'OVERSEAS') {
+      overseasPhishingCases++
+      overseasPhishingKrw += amt
+    } else if (cat === 'LOCAL') {
+      domesticPhishingCases++
+      domesticPhishingKrw += amt
+    }
   }
 
   const sortedMonths = [...byMonth.keys()].sort()
@@ -100,6 +120,11 @@ export async function getKpiStrip(
 
   return {
     totalCases: totalCases ?? 0,
+    totalKrw: Math.round(totalKrw),
+    overseasPhishingCases,
+    overseasPhishingKrw: Math.round(overseasPhishingKrw),
+    domesticPhishingCases,
+    domesticPhishingKrw: Math.round(domesticPhishingKrw),
     latestMonthCases,
     latestMonth: latestMonth ?? null,
     previousMonth,
@@ -110,27 +135,29 @@ export async function getKpiStrip(
 
 // ─── Country Leaderboard ─────────────────────────────────────
 
-async function getRemittanceTotalsByCountry(
+async function getMonthlyTotalsByCountry(
   supabase: SupabaseClient,
+  table: 'country_remittance_monthly' | 'country_local_transfer_monthly',
   dateFrom: string,
   dateTo: string,
-): Promise<Map<string, { totalAmountKrw: number }>> {
+): Promise<Map<string, { totalAmountKrw: number; totalTxn: number }>> {
   // Include every monthly bucket overlapping the filter range.
   // (Filter ranges that don't align to month boundaries will fold in the
   // full month — acceptable approximation given data is monthly-aggregated.)
   const fromMonth = dateFrom.slice(0, 7)
   const toMonth = dateTo.slice(0, 7)
   const { data } = await supabase
-    .from('country_remittance_monthly')
-    .select('country, total_amount_krw')
+    .from(table)
+    .select('country, total_amount_krw, total_txn')
     .gte('month', fromMonth)
     .lte('month', toMonth)
-  const map = new Map<string, { totalAmountKrw: number }>()
+  const map = new Map<string, { totalAmountKrw: number; totalTxn: number }>()
   for (const r of data ?? []) {
     const c = r.country as string
     const amt = Number(r.total_amount_krw) || 0
-    const prev = map.get(c) ?? { totalAmountKrw: 0 }
-    map.set(c, { totalAmountKrw: prev.totalAmountKrw + amt })
+    const txn = Number(r.total_txn) || 0
+    const prev = map.get(c) ?? { totalAmountKrw: 0, totalTxn: 0 }
+    map.set(c, { totalAmountKrw: prev.totalAmountKrw + amt, totalTxn: prev.totalTxn + txn })
   }
   return map
 }
@@ -139,12 +166,13 @@ export async function getCountryLeaderboard(
   supabase: SupabaseClient,
   filters: Filters
 ): Promise<CountryLeaderboardRow[]> {
-  const [{ data: rows }, remittance] = await Promise.all([
+  const [{ data: rows }, remittance, localTransfer] = await Promise.all([
     applyFilters(
       supabase.from('phishing_reports').select('sender_nationality, deposit_amount_krw, transaction_method, report_date, deposit_date'),
       filters,
     ),
-    getRemittanceTotalsByCountry(supabase, filters.dateFrom, filters.dateTo),
+    getMonthlyTotalsByCountry(supabase, 'country_remittance_monthly', filters.dateFrom, filters.dateTo),
+    getMonthlyTotalsByCountry(supabase, 'country_local_transfer_monthly', filters.dateFrom, filters.dateTo),
   ])
 
   if (!rows || rows.length === 0) return []
@@ -159,6 +187,9 @@ export async function getCountryLeaderboard(
       total: number
       sumKrw: number
       overseasPhishingKrw: number
+      overseasPhishingCases: number
+      domesticPhishingKrw: number
+      domesticPhishingCases: number
       byMonth: Map<string, number>
       byMethod: Map<string, number>
     }
@@ -178,6 +209,9 @@ export async function getCountryLeaderboard(
         total: 0,
         sumKrw: 0,
         overseasPhishingKrw: 0,
+        overseasPhishingCases: 0,
+        domesticPhishingKrw: 0,
+        domesticPhishingCases: 0,
         byMonth: new Map(),
         byMethod: new Map(),
       })
@@ -185,8 +219,13 @@ export async function getCountryLeaderboard(
     const c = countries.get(nat)!
     c.total++
     c.sumKrw += amt
-    if (methodToCategory(method) === 'OVERSEAS') {
+    const cat = methodToCategory(method)
+    if (cat === 'OVERSEAS') {
       c.overseasPhishingKrw += amt
+      c.overseasPhishingCases++
+    } else if (cat === 'LOCAL') {
+      c.domesticPhishingKrw += amt
+      c.domesticPhishingCases++
     }
     c.byMonth.set(month, (c.byMonth.get(month) ?? 0) + 1)
     c.byMethod.set(method, (c.byMethod.get(method) ?? 0) + 1)
@@ -220,10 +259,30 @@ export async function getCountryLeaderboard(
 
     const remit = remittance.get(country)
     const overseasTotalKrw = remit ? remit.totalAmountKrw : null
+    const overseasTotalTxn = remit ? remit.totalTxn : null
     const overseasPhishingKrw = Math.round(agg.overseasPhishingKrw)
+    const overseasPhishingCases = agg.overseasPhishingCases
     const overseasPhishingPct =
       overseasTotalKrw && overseasTotalKrw > 0
         ? (overseasPhishingKrw / overseasTotalKrw) * 100
+        : null
+    const overseasPhishingCasePct =
+      overseasTotalTxn && overseasTotalTxn > 0
+        ? (overseasPhishingCases / overseasTotalTxn) * 100
+        : null
+
+    const local = localTransfer.get(country)
+    const domesticTotalKrw = local ? local.totalAmountKrw : null
+    const domesticTotalTxn = local ? local.totalTxn : null
+    const domesticPhishingKrw = Math.round(agg.domesticPhishingKrw)
+    const domesticPhishingCases = agg.domesticPhishingCases
+    const domesticPhishingPct =
+      domesticTotalKrw && domesticTotalKrw > 0
+        ? (domesticPhishingKrw / domesticTotalKrw) * 100
+        : null
+    const domesticPhishingCasePct =
+      domesticTotalTxn && domesticTotalTxn > 0
+        ? (domesticPhishingCases / domesticTotalTxn) * 100
         : null
 
     result.push({
@@ -238,6 +297,15 @@ export async function getCountryLeaderboard(
       overseasTotalKrw,
       overseasPhishingKrw,
       overseasPhishingPct,
+      overseasTotalTxn,
+      overseasPhishingCases,
+      overseasPhishingCasePct,
+      domesticTotalKrw,
+      domesticPhishingKrw,
+      domesticPhishingPct,
+      domesticTotalTxn,
+      domesticPhishingCases,
+      domesticPhishingCasePct,
     })
   }
 
@@ -577,7 +645,7 @@ export async function getPeriodComparison(
   primary: DateRange,
   comparison: DateRange,
 ): Promise<PeriodComparisonRow[]> {
-  const select = 'sender_nationality, report_date, deposit_date'
+  const select = 'sender_nationality, deposit_amount_krw, report_date, deposit_date'
   const primaryFilters: Filters = { ...baseFilters, dateFrom: primary.from, dateTo: primary.to }
   const comparisonFilters: Filters = { ...baseFilters, dateFrom: comparison.from, dateTo: comparison.to }
 
@@ -586,17 +654,26 @@ export async function getPeriodComparison(
     applyFilters(supabase.from('phishing_reports').select(select), comparisonFilters),
   ])
 
-  const byCountry = new Map<string, { primary: number; comparison: number }>()
+  const byCountry = new Map<string, {
+    primary: number; comparison: number
+    primaryKrw: number; comparisonKrw: number
+  }>()
 
   for (const r of primaryRes.data ?? []) {
     const nat = r.sender_nationality as string
-    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0 })
-    byCountry.get(nat)!.primary++
+    const amt = Number(r.deposit_amount_krw) || 0
+    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0, primaryKrw: 0, comparisonKrw: 0 })
+    const c = byCountry.get(nat)!
+    c.primary++
+    c.primaryKrw += amt
   }
   for (const r of comparisonRes.data ?? []) {
     const nat = r.sender_nationality as string
-    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0 })
-    byCountry.get(nat)!.comparison++
+    const amt = Number(r.deposit_amount_krw) || 0
+    if (!byCountry.has(nat)) byCountry.set(nat, { primary: 0, comparison: 0, primaryKrw: 0, comparisonKrw: 0 })
+    const c = byCountry.get(nat)!
+    c.comparison++
+    c.comparisonKrw += amt
   }
 
   // Difference is computed in chronological direction: (later period − earlier period).
@@ -606,14 +683,20 @@ export async function getPeriodComparison(
 
   return [...byCountry.entries()]
     .map(([country, agg]) => {
-      const later = primaryIsLater ? agg.primary : agg.comparison
-      const earlier = primaryIsLater ? agg.comparison : agg.primary
+      const laterCases = primaryIsLater ? agg.primary : agg.comparison
+      const earlierCases = primaryIsLater ? agg.comparison : agg.primary
+      const laterKrw = primaryIsLater ? agg.primaryKrw : agg.comparisonKrw
+      const earlierKrw = primaryIsLater ? agg.comparisonKrw : agg.primaryKrw
       return {
         country,
         primaryCases: agg.primary,
         comparisonCases: agg.comparison,
-        deltaCases: later - earlier,
-        deltaPct: earlier > 0 ? ((later - earlier) / earlier) * 100 : null,
+        deltaCases: laterCases - earlierCases,
+        deltaPct: earlierCases > 0 ? ((laterCases - earlierCases) / earlierCases) * 100 : null,
+        primaryKrw: Math.round(agg.primaryKrw),
+        comparisonKrw: Math.round(agg.comparisonKrw),
+        deltaKrw: Math.round(laterKrw - earlierKrw),
+        deltaKrwPct: earlierKrw > 0 ? ((laterKrw - earlierKrw) / earlierKrw) * 100 : null,
       }
     })
     .filter((r) => r.primaryCases > 0 || r.comparisonCases > 0)
