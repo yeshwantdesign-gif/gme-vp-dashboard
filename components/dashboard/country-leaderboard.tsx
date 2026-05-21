@@ -103,8 +103,8 @@ export function CountryLeaderboard({
       : <ChevronUp className="ml-1 inline h-3.5 w-3.5" />
   }
 
-  type ColKey = SortKey | 'country' | 'primaryMethod' | 'methodCategory' | 'riskTier'
-  const columns: { key: ColKey; label: string }[] = [
+  type ColKey = SortKey | 'country' | 'primaryMethod' | 'methodCategory' | 'riskTier' | 'vpMix'
+  const columns: { key: ColKey; label: string; tooltip?: string }[] = [
     { key: 'country', label: t('dashboard.leaderboard.country') },
     { key: 'totalCases', label: t('dashboard.leaderboard.totalCases') },
     { key: 'totalKrw', label: t('dashboard.leaderboard.totalDamage') },
@@ -112,10 +112,21 @@ export function CountryLeaderboard({
     { key: scopeTotalKey, label: t(`dashboard.leaderboard.${totalLabelKey}`) },
     { key: scopePhishingKey, label: t(`dashboard.leaderboard.${phishingLabelKey}`) },
     { key: scopePctKey, label: t(`dashboard.leaderboard.${pctLabelKey}`) },
+    { key: 'vpMix', label: t('dashboard.leaderboard.vpMethodMix'), tooltip: t('dashboard.leaderboard.vpMethodMixTooltip') },
     { key: 'riskTier', label: t('dashboard.leaderboard.riskTier') },
     { key: 'methodCategory', label: t('dashboard.transactionMethod') },
     { key: 'primaryMethod', label: t('dashboard.leaderboard.primaryMethod') },
   ]
+
+  // VP method mix % per row (scope-VP / period total). Always count-based —
+  // it answers a method-composition question, not a financial-exposure one,
+  // and counts make the share readable across countries.
+  function vpMix(row: CountryLeaderboardRow): number | null {
+    if (row.totalCases === 0) return null
+    const numer = scope === 'overseas' ? row.overseasPhishingCases : row.domesticPhishingCases
+    return (numer / row.totalCases) * 100
+  }
+
 
   function renderScopeTotal(row: CountryLeaderboardRow) {
     if (scope === 'overseas') {
@@ -182,15 +193,19 @@ export function CountryLeaderboard({
                   col.key !== 'country' &&
                   col.key !== 'primaryMethod' &&
                   col.key !== 'methodCategory' &&
-                  col.key !== 'riskTier'
+                  col.key !== 'riskTier' &&
+                  col.key !== 'vpMix'
                 return (
                   <th
                     key={col.key}
                     className={`pb-2 text-left font-medium text-[var(--text-secondary)] ${idx > 0 ? 'pl-6' : ''} ${sortable ? 'cursor-pointer select-none hover:text-[var(--text-primary)]' : ''}`}
                     onClick={sortable ? () => handleSort(col.key as SortKey) : undefined}
                   >
-                    {col.label}
-                    {sortable && <SortIcon col={col.key as SortKey} />}
+                    <span className="inline-flex items-center gap-1">
+                      <span>{col.label}</span>
+                      {col.tooltip && <InfoTooltip text={col.tooltip} />}
+                      {sortable && <SortIcon col={col.key as SortKey} />}
+                    </span>
                   </th>
                 )
               })}
@@ -230,6 +245,14 @@ export function CountryLeaderboard({
                   <td className="py-2 pl-6 text-left tabular-nums">
                     {pct === null ? '—' : `${pct.toFixed(2)}%`}
                   </td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {(() => {
+                      const totalScopeCases = scope === 'overseas' ? scopePhishingCases : scopePhishingCases
+                      // Note: scopePhishingCases above already reflects the active scope.
+                      const mix = totalCases > 0 ? (totalScopeCases / totalCases) * 100 : null
+                      return mix === null ? '—' : `${mix.toFixed(1)}%`
+                    })()}
+                  </td>
                   <td className="py-2 pl-6 text-left">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
                       {t(`dashboard.riskTiers.${tier}`)}
@@ -259,6 +282,12 @@ export function CountryLeaderboard({
                   <td className="py-2 pl-6 text-left tabular-nums">{renderScopePhishing(row)}</td>
                   <td className="py-2 pl-6 text-left font-semibold tabular-nums">
                     {pct === null ? '—' : `${pct.toFixed(2)}%`}
+                  </td>
+                  <td className="py-2 pl-6 text-left tabular-nums">
+                    {(() => {
+                      const mix = vpMix(row)
+                      return mix === null ? '—' : `${mix.toFixed(1)}%`
+                    })()}
                   </td>
                   <td className="py-2 pl-6 text-left">
                     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${RISK_TIER_BADGE_CLASS[tier]}`}>
